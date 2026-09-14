@@ -1,0 +1,125 @@
+openapi: 3.1.0
+info:
+  title: Score Service API
+  description: Serviço externo para consulta de score por CPF.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8081
+    description: WireMock local
+tags:
+  - name: Scores
+    description: Consulta de score de clientes
+paths:
+  /scores/{cpf}:
+    get:
+      tags:
+        - Scores
+      summary: Consultar score por CPF
+      description: Retorna o score associado ao CPF informado.
+      operationId: findScoreByCpf
+      parameters:
+        - name: cpf
+          in: path
+          required: true
+          description: CPF contendo exatamente 11 algarismos.
+          schema:
+            type: string
+            pattern: '^[0-9]{11}$'
+            minLength: 11
+            maxLength: 11
+            example: '12345678901'
+      responses:
+        '200':
+          description: Score encontrado com sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreResponse'
+              example:
+                cpf: '12345678901'
+                score: 750
+                classification: LOW_RISK
+        '400':
+          description: CPF inválido.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemResponse'
+              example:
+                title: Invalid CPF
+                status: 400
+                detail: CPF must contain exactly 11 digits.
+        '404':
+          description: Score não encontrado para o CPF.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemResponse'
+              example:
+                title: Score not found
+                status: 404
+                detail: No score was found for the informed CPF.
+        '503':
+          description: Serviço de score temporariamente indisponível.
+          headers:
+            Retry-After:
+              description: Tempo recomendado em segundos para uma nova tentativa.
+              schema:
+                type: integer
+                example: 5
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemResponse'
+              example:
+                title: Service unavailable
+                status: 503
+                detail: The score service is temporarily unavailable.
+components:
+  schemas:
+    ScoreResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - cpf
+        - score
+        - classification
+      properties:
+        cpf:
+          type: string
+          description: CPF consultado.
+          pattern: '^[0-9]{11}$'
+          minLength: 11
+          maxLength: 11
+          example: '12345678901'
+        score:
+          type: integer
+          description: Score calculado para o CPF.
+          minimum: 700
+          maximum: 950
+          example: 750
+        classification:
+          type: string
+          description: Classificação de risco correspondente ao score.
+          enum:
+            - LOW_RISK
+            - MEDIUM_RISK
+            - HIGH_RISK
+          example: LOW_RISK
+    ProblemResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - title
+        - status
+        - detail
+      properties:
+        title:
+          type: string
+          example: Score not found
+        status:
+          type: integer
+          example: 404
+        detail:
+          type: string
+          example: No score was found for the informed CPF.

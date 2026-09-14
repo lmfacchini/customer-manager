@@ -1,0 +1,65 @@
+spring:
+  application:
+    name: manager
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8082/realms/customer}
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/db_dev}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      minimum-idle: 2
+      maximum-pool-size: 10
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  jpa:
+    open-in-view: false
+    show-sql: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+      retry:
+        enabled: true
+        initial-interval: 1s
+        multiplier: 2
+        max-interval: 5s
+        max-attempts: 3
+    listener:
+      simple:
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 1s
+          multiplier: 2
+          max-interval: 5s
+          max-attempts: 3
+application:
+  rabbitmq:
+    exchange: customer.events
+    dead-letter-exchange: customer.events.dlx
+    routing-keys:
+      customer-created: customer.created
+      customer-status-change: customer.status-change
+      dead-letter: customer.dead-letter
+    queues:
+      customer-created: customer.created.queue
+      customer-status-change: customer.status-change.queue
+      dead-letter: customer.dead-letter.queue
