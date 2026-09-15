@@ -367,6 +367,12 @@ Perfis disponíveis:
 | `USER` | Consulta, filtro e score |
 | `ADMIN` | Consulta, criação, atualização e exclusão |
 
+
+| User     | Password   |
+|----------|------------|
+| `user2`  | 'user123'  |
+| `admin2` | 'admin123' |
+
 O JWT deve possuir as roles no claim `realm_access.roles`:
 
 ```json
