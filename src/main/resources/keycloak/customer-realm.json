@@ -31,7 +31,7 @@
 
   "users": [
     {
-      "username": "user",
+      "username": "user2",
       "enabled": true,
       "emailVerified": true,
       "firstName": "Common",
@@ -51,7 +51,7 @@
       ]
     },
     {
-      "username": "admin",
+      "username": "admin2",
       "enabled": true,
       "emailVerified": true,
       "firstName": "System",

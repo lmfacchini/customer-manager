@@ -138,7 +138,6 @@ class CustomerServiceImplTest {
         verify(customerValidationService).validate(updateRequest);
         verify(customer).setName("Customer Name");
         verify(customer).setCpf("12345678901");
-        verify(customer).setStatus(updateRequest.status());
         verify(customer).setEmail("customer@email.com");
         verify(customerRepository).save(customer);
         verify(mapper).toResponse(customer);

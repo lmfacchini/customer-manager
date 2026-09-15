@@ -12,6 +12,7 @@ import com.datum.client.manager.service.CustomerService;
 import com.datum.client.manager.service.validation.CustomerValidationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -47,10 +48,10 @@ public class CustomerServiceImpl implements CustomerService {
         var optional = customerRepository.findById(id);
         var entity = optional.orElseThrow(NotFoundException::new);
         customerValidationService.validate(request);
-        entity.setName(request.name());
-        entity.setCpf(request.cpf().strip());
-        entity.setStatus(request.status());
-        entity.setEmail(request.email().strip().toLowerCase());
+        if(StringUtils.hasText(request.name())) entity.setName(request.name());
+        if(StringUtils.hasText(request.cpf()))entity.setCpf(request.cpf().strip());
+        if(request.status() != null)entity.setStatus(request.status());
+        if(StringUtils.hasText(request.email()))entity.setEmail(request.email().strip().toLowerCase());
         entity = customerRepository.save(entity);
         return mapper.toResponse(entity);
     }

@@ -393,7 +393,7 @@ Exemplo para ambiente de desenvolvimento:
 
 ```bash
 curl --request POST \
-  "http://localhost:8082/realms/client-manager/protocol/openid-connect/token" \
+  "http://localhost:8082/realms/customer/protocol/openid-connect/token" \
   --header "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "grant_type=password" \
   --data-urlencode "client_id=client-manager-api" \
@@ -405,7 +405,7 @@ Se o cliente do Keycloak for confidencial:
 
 ```bash
 curl --request POST \
-  "http://localhost:8082/realms/client-manager/protocol/openid-connect/token" \
+  "http://localhost:8082/realms/customer/protocol/openid-connect/token" \
   --header "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "grant_type=password" \
   --data-urlencode "client_id=client-manager-api" \

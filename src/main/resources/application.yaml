@@ -59,6 +59,7 @@ application:
       customer-created: customer.created
       customer-status-change: customer.status-change
       dead-letter: customer.dead-letter
+
     queues:
       customer-created: customer.created.queue
       customer-status-change: customer.status-change.queue

@@ -14,7 +14,8 @@ import java.util.Objects;
 
 import static com.datum.client.manager.constants.Configuration.MAX_RESULT;
 
-@RestController("/customers")
+@RestController
+@RequestMapping("/customers")
 @RequiredArgsConstructor
 public class CustomerController {
 

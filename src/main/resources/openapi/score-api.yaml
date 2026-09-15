@@ -38,7 +38,6 @@ paths:
               example:
                 cpf: '12345678901'
                 score: 750
-                classification: LOW_RISK
         '400':
           description: CPF inválido.
           content:
@@ -83,7 +82,6 @@ components:
       required:
         - cpf
         - score
-        - classification
       properties:
         cpf:
           type: string
@@ -98,14 +96,6 @@ components:
           minimum: 700
           maximum: 950
           example: 750
-        classification:
-          type: string
-          description: Classificação de risco correspondente ao score.
-          enum:
-            - LOW_RISK
-            - MEDIUM_RISK
-            - HIGH_RISK
-          example: LOW_RISK
     ProblemResponse:
       type: object
       additionalProperties: true

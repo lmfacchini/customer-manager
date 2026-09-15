@@ -4,12 +4,16 @@ import com.datum.client.manager.constants.CustomerStatus;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.hibernate.annotations.DynamicInsert;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 
 @Entity
 @Table(name = "cstmr")
 @Data
 @EqualsAndHashCode(of = {"id", "cpf", "email"}, callSuper = false)
+@DynamicInsert
 public class Customer extends AuditableEntity{
 
     @Id
@@ -34,7 +38,8 @@ public class Customer extends AuditableEntity{
     private String email;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "stts")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "stts", columnDefinition = "customerstatus")
     private CustomerStatus status;
 
 }
