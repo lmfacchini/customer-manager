@@ -4,139 +4,10 @@ API REST para gerenciamento de clientes, consulta de score de crédito e process
 
 ## Arquitetura da solução
 
-A aplicação utiliza arquitetura hexagonal, mantendo as regras de negócio desacopladas de frameworks e serviços externos.
-
-```text
-src/main/java/com/datum/client/manager
-├── client
-│   └── Clientes HTTP do serviço de score e do ViaCEP
-├── config
-│   └── Configuração e criação dos beans
-├── constants
-│   └── Constantes e enumerações
-├── controller
-│   └── Adaptadores de entrada REST
-├── domain
-│   └── Entidades de cliente, endereço prioritário e log de consulta
-├── dto
-│   └── Objetos de entrada e saída
-├── exception
-│   └── Exceções e tratamento de erros
-├── mapper
-│   └── Conversão entre entidades e DTOs
-├── mq
-│   ├── consumer
-│   │   └── Consumidores RabbitMQ de clientes e consultas de CEP
-│   ├── event
-│   │   └── Eventos e mensagens
-│   └── publisher
-│       └── Publicadores RabbitMQ
-├── repository
-│   ├── Portas de persistência
-│   └── jpa
-│       └── Adaptadores de persistência JPA
-├── security
-│   └── Configuração OAuth 2.0 e JWT
-└── service
-    ├── Regras de negócio
-    ├── transactional
-    │   └── Decoradores transacionais
-    └── validation
-        └── Validações de negócio
-```
-
-Fluxo principal:
-
-```text
-Controller
-    |
-    v
-CustomerServiceTransactional
-    |
-    v
-CustomerServiceImpl
-    |
-    +--> CustomerRepository --> PostgreSQL
-    |
-    +--> ScoresApiClient --> Serviço de Score
-    |
-    +--> CustomerCreatedPublisher --> RabbitMQ
-```
-
-Fluxo de consulta de CEP:
-
-```mermaid
-flowchart LR
-    API[AddressController] --> SVC[AddressService]
-    SVC --> DB[(PostgreSQL: CEPs prioritários)]
-    DB -->|CEP cadastrado| RESULT[Resposta]
-    SVC -->|Não encontrado| VIA[ViaCEP]
-    VIA --> RESULT
-    SVC -->|Publica evento| MQ[(RabbitMQ)]
-    MQ --> CONSUMER[AddressLookupConsumer]
-    CONSUMER --> LOG[(PostgreSQL: logs de consulta)]
-```
-
-A resposta é obtida primeiro da tabela `priority_addresses`; somente um CEP ausente
-nessa tabela é consultado no ViaCEP. Para cada resultado, a API publica um evento
-`ADDRESS_LOOKUP`. O consumidor persiste data/hora, CEP, origem e os dados do endereço
-em `address_lookup_logs`. O UUID do evento é chave primária, tornando o processamento
-idempotente; falhas de consumo são encaminhadas à dead-letter queue.
-
-### Portas de entrada
-
-- `CustomerService`
-- `ProcessedMessageService`
-- `AddressService`
-- `AddressLookupLogService`
-
-### Portas de saída
-
-- `CustomerRepository`
-- `ProcessedMessageRepository`
-- `AddressRepository`
-- `AddressLookupLogRepository`
-- `CustomerCreatedPublisher`
-- `AddressLookupPublisher`
-- `AddressApiClient`
-- `ScoresApiClient`
-
-### Adaptadores de entrada
-
-- `CustomerController`
-- `AddressController`
-- `CustomerStatusChangeConsumer`
-- `AddressLookupConsumer`
-
-### Adaptadores de saída
-
-- Repositórios JPA
-- Clientes HTTP do serviço de score e do ViaCEP
-- Publicador e consumidor de eventos de consulta de CEP
-- Publicador RabbitMQ
-
-## Tecnologias
-
-- Java 26
-- Spring Boot 4
-- Maven
-- Spring Web
-- Spring Data JPA
-- Hibernate
-- PostgreSQL
-- RabbitMQ
-- Spring Security
-- OAuth 2.0 Resource Server
-- JWT
-- Keycloak
-- OpenAPI/Swagger
-- WireMock
-- JUnit 5
-- Mockito
-- MapStruct
-- Lombok
-- Docker
-- Docker Compose
+A aplicação organiza a API REST, as regras de negócio, persistência, integrações
+HTTP e mensageria em camadas com princípios hexagonais. O diagrama de componentes,
+os fluxos e as justificativas das tecnologias estão em
+[Arquitetura e decisões técnicas](docs/architecture.md).
 
 ## Requisitos para execução
 
@@ -160,13 +31,13 @@ docker compose version
 |---|---:|---|
 | PostgreSQL | `5432` | Persistência |
 | RabbitMQ | `5672` | Mensageria |
-| RabbitMQ Management | `15672` | Administração do RabbitMQ |
-| Keycloak | `8080` | Emissão dos Access Tokens |
+| Keycloak | `8082` | Emissão dos Access Tokens |
 | WireMock | `8081` | Simulação do serviço de score |
 | ViaCEP | HTTPS | Consulta externa de endereços |
-| Client Manager API | `8082` | Aplicação |
+| Client Manager API | `8080` | Aplicação |
 
-As portas devem ser ajustadas conforme o `docker-compose.yaml` e o `application.yaml` do projeto.
+As portas publicadas estão definidas em `docker-compose.yml`. A aplicação Java é
+iniciada separadamente e usa a porta padrão do Spring Boot (`8080`).
 
 ## Como iniciar as dependências
 
@@ -213,93 +84,13 @@ docker compose down -v
 
 ## Configuração da aplicação
 
-Exemplo de `application.yaml`:
-
-```yaml
-server:
-  port: ${SERVER_PORT:8082}
-
-spring:
-  application:
-    name: client-manager
-
-  datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/client_manager}
-    username: ${DATABASE_USERNAME:postgres}
-    password: ${DATABASE_PASSWORD:postgres}
-    driver-class-name: org.postgresql.Driver
-
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: validate
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-
-  rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USERNAME:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
-
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8080/realms/client-manager}
-
-application:
-  clients:
-    score:
-      base-url: ${SCORE_API_BASE_URL:http://localhost:8081}
-
-  rabbitmq:
-    exchange: ${CUSTOMER_EXCHANGE:customer.exchange}
-
-    queues:
-      customer-status-change: ${CUSTOMER_STATUS_CHANGE_QUEUE:customer.status-change.queue}
-
-    routing-keys:
-      customer-created: ${CUSTOMER_CREATED_ROUTING_KEY:customer.created}
-      customer-status-change: ${CUSTOMER_STATUS_CHANGE_ROUTING_KEY:customer.status-change}
-```
-
-## Variáveis de ambiente
-
-| Variável | Valor padrão | Descrição |
-|---|---|---|
-| `SERVER_PORT` | `8082` | Porta da aplicação |
-| `DATABASE_URL` | `jdbc:postgresql://localhost:5432/client_manager` | URL do PostgreSQL |
-| `DATABASE_USERNAME` | `postgres` | Usuário do PostgreSQL |
-| `DATABASE_PASSWORD` | `postgres` | Senha do PostgreSQL |
-| `RABBITMQ_HOST` | `localhost` | Host do RabbitMQ |
-| `RABBITMQ_PORT` | `5672` | Porta do RabbitMQ |
-| `RABBITMQ_USERNAME` | `guest` | Usuário do RabbitMQ |
-| `RABBITMQ_PASSWORD` | `guest` | Senha do RabbitMQ |
-| `JWT_ISSUER_URI` | `http://localhost:8080/realms/client-manager` | Emissor do JWT |
-| `SCORE_API_BASE_URL` | `http://localhost:8081` | URL do serviço de score |
-| `VIACEP_BASE_URL` | `https://viacep.com.br` | URL base da API ViaCEP |
-| `CUSTOMER_EXCHANGE` | `customer.exchange` | Exchange dos eventos |
-| `CUSTOMER_CREATED_ROUTING_KEY` | `customer.created` | Routing key de criação |
-| `CUSTOMER_STATUS_CHANGE_QUEUE` | `customer.status-change.queue` | Fila de alteração de status |
-| `CUSTOMER_STATUS_CHANGE_ROUTING_KEY` | `customer.status-change` | Routing key de alteração de status |
-
-Exemplo:
-
-```bash
-export SERVER_PORT="8082"
-export DATABASE_URL="jdbc:postgresql://localhost:5432/client_manager"
-export DATABASE_USERNAME="postgres"
-export DATABASE_PASSWORD="postgres"
-export RABBITMQ_HOST="localhost"
-export RABBITMQ_PORT="5672"
-export RABBITMQ_USERNAME="guest"
-export RABBITMQ_PASSWORD="guest"
-export JWT_ISSUER_URI="http://localhost:8080/realms/client-manager"
-export SCORE_API_BASE_URL="http://localhost:8081"
-```
+As configurações efetivas e seus valores padrão estão em
+[`src/main/resources/application.yaml`](src/main/resources/application.yaml) e
+em [Arquitetura e decisões técnicas](docs/architecture.md). Entre as variáveis
+suportadas estão `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `RABBITMQ_HOST`,
+`RABBITMQ_PORT`, `RABBITMQ_USERNAME`, `RABBITMQ_PASSWORD`, `JWT_ISSUER_URI` e
+`VIACEP_BASE_URL`. Os nomes de exchange, filas e routing keys são configurados
+diretamente no YAML.
 
 ## Banco de dados
 
@@ -310,22 +101,12 @@ O banco deve possuir:
 - Tabela de clientes;
 - Sequence para geração do identificador do cliente;
 - Constraints únicas para CPF e e-mail;
-- Tabela `processed_messages`;
+- Tabela `prcssd_mssgs`;
 - Constraint única para o identificador do evento;
 - Índices necessários para consultas e filtros.
 
-Caso o projeto utilize Flyway, os scripts devem ficar em:
-
-```text
-src/main/resources/db/migration
-```
-
-Exemplo:
-
-```text
-src/main/resources/db/migration/V1__create_customer.sql
-src/main/resources/db/migration/V2__create_processed_messages.sql
-```
+Os scripts de inicialização estão em `src/main/resources/db/postgresql` e são
+montados pelo Compose no diretório de inicialização do PostgreSQL.
 
 ## RabbitMQ
 
@@ -351,7 +132,9 @@ A aplicação também consome mensagens solicitando alteração do status de um 
 }
 ```
 
-A tabela `processed_messages` controla a idempotência. Quando uma mensagem com o mesmo `eventId` é entregue mais de uma vez, somente a primeira deve ser processada.
+O consumidor tenta registrar o `eventId` em `prcssd_mssgs` para rejeitar duplicatas.
+No código atual, esse consumidor ainda não aplica a alteração de status ao
+cliente; consulte também [a visão de arquitetura](docs/architecture.md).
 
 ## Serviço de score
 

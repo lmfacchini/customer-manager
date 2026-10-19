@@ -5,6 +5,7 @@ import com.datum.client.manager.domain.Address;
 import com.datum.client.manager.dto.AddressResponse;
 import com.datum.client.manager.dto.PrioritizedAddressRequest;
 import com.datum.client.manager.exception.BusinessException;
+import com.datum.client.manager.exception.NotFoundException;
 import com.datum.client.manager.mq.event.AddressLookupEvent;
 import com.datum.client.manager.mq.publisher.AddressLookupPublisher;
 import com.datum.client.manager.repository.AddressRepository;
@@ -107,5 +108,33 @@ class AddressServiceImplTest {
 
         verify(repository, never()).findByCep(any());
         verify(addressApiClient, never()).findByCep(any());
+    }
+
+    @Test
+    void shouldPublishNotFoundExternalResponseBeforeReturningNotFound() {
+        AddressResponse notFound = new AddressResponse(
+                "99999999", null, null, null, null, null,
+                null, null, null, null, null, null, null, true
+        );
+        when(repository.findByCep("99999999")).thenReturn(Optional.empty());
+        when(addressApiClient.findByCep("99999999")).thenReturn(notFound);
+
+        assertThrows(
+                NotFoundException.class,
+                () -> service.findByCep("99999999")
+        );
+
+        ArgumentCaptor<AddressLookupEvent> event =
+                ArgumentCaptor.forClass(AddressLookupEvent.class);
+        verify(eventPublisher).publish(event.capture());
+        assertEquals("EXTERNAL", event.getValue().source());
+        assertEquals(notFound, event.getValue().address());
+    }
+
+    @Test
+    void shouldNormalizeCepBeforeDeletingPriorityAddress() {
+        service.deletePrioritized(" 01001-000 ");
+
+        verify(repository).deleteByCep("01001000");
     }
 }
