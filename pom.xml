@@ -8,7 +8,7 @@
 		<version>4.1.1</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>com.datum.customer</groupId>
+	<groupId>com.customer</groupId>
 	<artifactId>manager</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>customer-manager</name>
@@ -171,13 +171,13 @@
 								${project.build.directory}/generated-sources/openapi
 							</output>
 							<apiPackage>
-								com.datum.customer.adapter.output.score.generated.api
+								com.customer.adapter.output.score.generated.api
 							</apiPackage>
 							<modelPackage>
-								com.datum.customer.adapter.output.score.generated.model
+								com.customer.adapter.output.score.generated.model
 							</modelPackage>
 							<invokerPackage>
-								com.datum.customer.adapter.output.score.generated.client
+								com.customer.adapter.output.score.generated.client
 							</invokerPackage>
 							<generateApiTests>false</generateApiTests>
 							<generateModelTests>false</generateModelTests>
