@@ -269,7 +269,7 @@ curl --request POST \
   "http://localhost:8082/realms/customer/protocol/openid-connect/token" \
   --header "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "grant_type=password" \
-  --data-urlencode "client_id=client-manager-api" \
+  --data-urlencode "client_id=customer-api" \
   --data-urlencode "username=<USERNAME>" \
   --data-urlencode "password=<PASSWORD>"
 ```
@@ -281,7 +281,7 @@ curl --request POST \
   "http://localhost:8082/realms/customer/protocol/openid-connect/token" \
   --header "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "grant_type=password" \
-  --data-urlencode "client_id=client-manager-api" \
+  --data-urlencode "client_id=customer-api" \
   --data-urlencode "client_secret=<CLIENT_SECRET>" \
   --data-urlencode "username=<USERNAME>" \
   --data-urlencode "password=<PASSWORD>"
