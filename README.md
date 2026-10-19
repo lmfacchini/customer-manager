@@ -9,15 +9,15 @@ A aplicação utiliza arquitetura hexagonal, mantendo as regras de negócio desa
 ```text
 src/main/java/com/datum/client/manager
 ├── client
-│   └── Cliente HTTP do serviço de score
-├── configuration
+│   └── Clientes HTTP do serviço de score e do ViaCEP
+├── config
 │   └── Configuração e criação dos beans
 ├── constants
 │   └── Constantes e enumerações
 ├── controller
 │   └── Adaptadores de entrada REST
 ├── domain
-│   └── Entidades e objetos de domínio
+│   └── Entidades de cliente, endereço prioritário e log de consulta
 ├── dto
 │   └── Objetos de entrada e saída
 ├── exception
@@ -26,7 +26,7 @@ src/main/java/com/datum/client/manager
 │   └── Conversão entre entidades e DTOs
 ├── mq
 │   ├── consumer
-│   │   └── Consumidores RabbitMQ
+│   │   └── Consumidores RabbitMQ de clientes e consultas de CEP
 │   ├── event
 │   │   └── Eventos e mensagens
 │   └── publisher
@@ -63,27 +63,56 @@ CustomerServiceImpl
     +--> CustomerCreatedPublisher --> RabbitMQ
 ```
 
+Fluxo de consulta de CEP:
+
+```mermaid
+flowchart LR
+    API[AddressController] --> SVC[AddressService]
+    SVC --> DB[(PostgreSQL: CEPs prioritários)]
+    DB -->|CEP cadastrado| RESULT[Resposta]
+    SVC -->|Não encontrado| VIA[ViaCEP]
+    VIA --> RESULT
+    SVC -->|Publica evento| MQ[(RabbitMQ)]
+    MQ --> CONSUMER[AddressLookupConsumer]
+    CONSUMER --> LOG[(PostgreSQL: logs de consulta)]
+```
+
+A resposta é obtida primeiro da tabela `priority_addresses`; somente um CEP ausente
+nessa tabela é consultado no ViaCEP. Para cada resultado, a API publica um evento
+`ADDRESS_LOOKUP`. O consumidor persiste data/hora, CEP, origem e os dados do endereço
+em `address_lookup_logs`. O UUID do evento é chave primária, tornando o processamento
+idempotente; falhas de consumo são encaminhadas à dead-letter queue.
+
 ### Portas de entrada
 
 - `CustomerService`
 - `ProcessedMessageService`
+- `AddressService`
+- `AddressLookupLogService`
 
 ### Portas de saída
 
 - `CustomerRepository`
 - `ProcessedMessageRepository`
+- `AddressRepository`
+- `AddressLookupLogRepository`
 - `CustomerCreatedPublisher`
+- `AddressLookupPublisher`
+- `AddressApiClient`
 - `ScoresApiClient`
 
 ### Adaptadores de entrada
 
 - `CustomerController`
+- `AddressController`
 - `CustomerStatusChangeConsumer`
+- `AddressLookupConsumer`
 
 ### Adaptadores de saída
 
 - Repositórios JPA
-- Cliente HTTP do serviço de score
+- Clientes HTTP do serviço de score e do ViaCEP
+- Publicador e consumidor de eventos de consulta de CEP
 - Publicador RabbitMQ
 
 ## Tecnologias
@@ -134,6 +163,7 @@ docker compose version
 | RabbitMQ Management | `15672` | Administração do RabbitMQ |
 | Keycloak | `8080` | Emissão dos Access Tokens |
 | WireMock | `8081` | Simulação do serviço de score |
+| ViaCEP | HTTPS | Consulta externa de endereços |
 | Client Manager API | `8082` | Aplicação |
 
 As portas devem ser ajustadas conforme o `docker-compose.yaml` e o `application.yaml` do projeto.
@@ -250,6 +280,7 @@ application:
 | `RABBITMQ_PASSWORD` | `guest` | Senha do RabbitMQ |
 | `JWT_ISSUER_URI` | `http://localhost:8080/realms/client-manager` | Emissor do JWT |
 | `SCORE_API_BASE_URL` | `http://localhost:8081` | URL do serviço de score |
+| `VIACEP_BASE_URL` | `https://viacep.com.br` | URL base da API ViaCEP |
 | `CUSTOMER_EXCHANGE` | `customer.exchange` | Exchange dos eventos |
 | `CUSTOMER_CREATED_ROUTING_KEY` | `customer.created` | Routing key de criação |
 | `CUSTOMER_STATUS_CHANGE_QUEUE` | `customer.status-change.queue` | Fila de alteração de status |
@@ -353,6 +384,59 @@ Classificação utilizada pela aplicação:
 | Menor que `500` | `HIGH_RISK` |
 | De `500` até `749` | `MEDIUM_RISK` |
 | Maior ou igual a `750` | `LOW_RISK` |
+
+## Consulta de CEP e endereços prioritários
+
+`GET /addresses/{cep}` procura primeiro na tabela local de endereços prioritários.
+Se o CEP não estiver cadastrado, consulta o ViaCEP (`/ws/{cep}/json/`). O CEP aceita
+o formato de oito dígitos, com hífen opcional (`01001000` ou `01001-000`). Consulta
+requer o perfil `USER` ou `ADMIN`.
+
+Cadastre ou atualize um endereço prioritário (requer `ADMIN`):
+
+```bash
+curl --request PUT \
+  http://localhost:8080/addresses/prioritized \
+  --header "Authorization: Bearer <ACCESS_TOKEN>" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "cep": "01001-000",
+    "logradouro": "Praça da Sé",
+    "complemento": "lado ímpar",
+    "bairro": "Sé",
+    "localidade": "São Paulo",
+    "uf": "SP"
+  }'
+```
+
+Consulte um CEP:
+
+```bash
+curl --header "Authorization: Bearer <ACCESS_TOKEN>" \
+  http://localhost:8080/addresses/01001000
+```
+
+Remova um CEP prioritário (requer `ADMIN`):
+
+```bash
+curl --request DELETE \
+  --header "Authorization: Bearer <ACCESS_TOKEN>" \
+  http://localhost:8080/addresses/prioritized/01001000
+```
+
+Cada consulta publica um evento RabbitMQ `ADDRESS_LOOKUP`. O consumidor registra,
+de forma assíncrona e idempotente, o horário, CEP, origem (base interna ou ViaCEP) e
+todos os campos retornados em `address_lookup_logs`. O endpoint não espera a gravação
+do log. O endereço consultado internamente tem precedência sobre o serviço externo.
+
+Em uma instalação nova, o `v2_ddl.sql` é executado automaticamente pelo PostgreSQL
+junto dos scripts de inicialização. Para uma base criada anteriormente, aplique o
+script uma única vez:
+
+```bash
+psql -h localhost -U postgres -d db_dev \
+  -f src/main/resources/db/postgresql/v2_ddl.sql
+```
 
 ## Segurança
 
@@ -760,6 +844,8 @@ curl http://localhost:8080/actuator/health
 | `403` | Usuário sem autorização |
 | `404` | Cliente não encontrado |
 | `409` | Conflito de CPF, e-mail ou evento |
+| `422` | CEP inválido |
+| `502` | Falha no serviço externo de score ou CEP |
 | `500` | Erro interno |
 
 ## Regras principais

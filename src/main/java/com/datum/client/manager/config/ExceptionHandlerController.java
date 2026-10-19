@@ -11,6 +11,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 
 import java.text.MessageFormat;
 
@@ -37,6 +39,16 @@ public class ExceptionHandlerController {
         return ResponseEntity.notFound().build();
     }
 
+    @ExceptionHandler({
+            MethodArgumentNotValidException.class,
+            HttpMessageNotReadableException.class
+    })
+    public ResponseEntity<?> invalidRequest(Exception exception) {
+        return ResponseEntity.badRequest().body(
+                new InvalidRequestResponse("Request data is invalid.")
+        );
+    }
+
     @ExceptionHandler(value = Exception.class)
     public ResponseEntity<?> internalServerError(Exception exception){
 
@@ -57,7 +69,9 @@ public class ExceptionHandlerController {
     public record BusinessExceptionResponse(String code, String message){
 
     }
-}
 
+    public record InvalidRequestResponse(String message) {
+    }
+}
 
 

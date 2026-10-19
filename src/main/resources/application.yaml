@@ -59,8 +59,12 @@ application:
       customer-created: customer.created
       customer-status-change: customer.status-change
       dead-letter: customer.dead-letter
-
+      address-lookup: address.lookup
     queues:
       customer-created: customer.created.queue
       customer-status-change: customer.status-change.queue
       dead-letter: customer.dead-letter.queue
+      address-lookup: address.lookup.queue
+  clients:
+    viacep:
+      base-url: ${VIACEP_BASE_URL:https://viacep.com.br}

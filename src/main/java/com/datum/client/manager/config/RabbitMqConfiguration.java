@@ -64,6 +64,15 @@ public class RabbitMqConfiguration {
     }
 
     @Bean
+    public Queue addressLookupQueue(CustomerRabbitProperties properties) {
+        return QueueBuilder
+                .durable(properties.queues().addressLookup())
+                .deadLetterExchange(properties.deadLetterExchange())
+                .deadLetterRoutingKey(properties.routingKeys().deadLetter())
+                .build();
+    }
+
+    @Bean
     public Binding customerCreatedBinding(
             Queue customerCreatedQueue,
             TopicExchange customerExchange,
@@ -97,6 +106,18 @@ public class RabbitMqConfiguration {
                 .bind(customerDeadLetterQueue)
                 .to(customerDeadLetterExchange)
                 .with(properties.routingKeys().deadLetter());
+    }
+
+    @Bean
+    public Binding addressLookupBinding(
+            Queue addressLookupQueue,
+            TopicExchange customerExchange,
+            CustomerRabbitProperties properties
+    ) {
+        return BindingBuilder
+                .bind(addressLookupQueue)
+                .to(customerExchange)
+                .with(properties.routingKeys().addressLookup());
     }
 
     @Bean

@@ -13,14 +13,16 @@ public record CustomerRabbitProperties(
     public record RoutingKeys(
             String customerCreated,
             String customerStatusChange,
-            String deadLetter
+            String deadLetter,
+            String addressLookup
     ) {
     }
 
     public record Queues(
             String customerCreated,
             String customerStatusChange,
-            String deadLetter
+            String deadLetter,
+            String addressLookup
     ) {
     }
 }
